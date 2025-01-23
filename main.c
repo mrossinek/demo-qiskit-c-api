@@ -109,11 +109,131 @@ int main() {
             }
 
         } else {
+            // FIXME: handle intermittent Z terms
+
             // 2-body term
             assert(i != 0);
             assert(a != 0);
             assert(j != 0);
             assert(b != 0);
+
+            if (i == a && j == b) {
+                if (i == j) {
+                    SparseObservable* terms = qk_obs_identity(num_qubits);
+
+                    double complex coeff_quart = 0.25 * coeff;
+                    double complex coeff_quart_minus = -0.25 * coeff;
+
+                    // 0.25 * coeff * Id
+                    terms = qk_obs_multiply(terms, &coeff_quart);
+
+                    // alpha-spin: -0.25 * coeff * Z_i
+                    BitTerm bit_terms[1] = {BitTerm_Z};
+                    uint32_t indices[1] = {i - 1};
+                    SparseTerm term_alpha = {&coeff_quart_minus, 1, bit_terms, indices, num_qubits};
+                    qk_obs_add_term(terms, &term_alpha);
+
+                    // beta-spin: -0.25 * coeff * Z_{i + N}
+                    indices[0] = i - 1 + num_orbs;
+                    SparseTerm term_beta = {&coeff_quart_minus, 1, bit_terms, indices, num_qubits};
+                    qk_obs_add_term(terms, &term_beta);
+
+                    // mixed-spin: 0.25 * coeff * Z_i @ Z_{i + N}
+                    BitTerm bit_terms_mixed[2] = {BitTerm_Z, BitTerm_Z};
+                    uint32_t indices_mixed[2] = {i - 1, i - 1 + num_orbs};
+                    SparseTerm term_mixed = {&coeff_quart, 2, bit_terms_mixed, indices_mixed, num_qubits};
+                    qk_obs_add_term(terms, &term_mixed);
+
+                    obs = qk_obs_add(obs, terms);
+
+                } else {
+                    SparseObservable* terms = qk_obs_identity(num_qubits);
+
+                    // coeff * Id
+                    terms = qk_obs_multiply(terms, &coeff);
+
+                    // single-Z terms: -0.5 * coeff * Z_k
+                    // for all k in {i, j, i + N, j + N}
+                    double complex coeff_single_z = -0.5 * coeff;
+                    BitTerm bit_terms_single_z[1] = {BitTerm_Z};
+                    uint32_t indices_single_z[1] = {i - 1};
+                    SparseTerm term_single_z = {&coeff_single_z, 1, bit_terms_single_z, indices_single_z, num_qubits};
+                    qk_obs_add_term(terms, &term_single_z);
+                    indices_single_z[0] = j - 1;
+                    qk_obs_add_term(terms, &term_single_z);
+                    indices_single_z[0] = i - 1 + num_orbs;
+                    qk_obs_add_term(terms, &term_single_z);
+                    indices_single_z[0] = j - 1 + num_orbs;
+                    qk_obs_add_term(terms, &term_single_z);
+
+                    // double-Z terms: 0.25 * coeff * Z_k @ Z_l
+                    // for all (k, l) in {(i, j), (i + N, j), (i, j + N), (i + N, j + N)}
+                    double complex coeff_double_z = 0.25 * coeff;
+                    BitTerm bit_terms_double_z[2] = {BitTerm_Z, BitTerm_Z};
+                    uint32_t indices_double_z[2] = {i - 1, j - 1};
+                    SparseTerm term_double_z = {&coeff_double_z, 2, bit_terms_double_z, indices_double_z, num_qubits};
+                    qk_obs_add_term(terms, &term_double_z);
+                    indices_double_z[0] = i - 1 + num_orbs;
+                    qk_obs_add_term(terms, &term_double_z);
+                    indices_double_z[1] = j - 1 + num_orbs;
+                    qk_obs_add_term(terms, &term_double_z);
+                    indices_double_z[0] = i - 1;
+                    qk_obs_add_term(terms, &term_double_z);
+
+                    obs = qk_obs_add(obs, terms);
+                }
+
+            } else if (i != a  && j != b && i == j && a == b) {
+                    SparseObservable* terms = qk_obs_identity(num_qubits);
+
+                    // -0.5 * coeff * Id
+                    double complex coeff_half = -0.5 * coeff;
+                    terms = qk_obs_multiply(terms, &coeff_half);
+
+                    // single-Z terms: 0.25 * coeff * Z_k
+                    // for all k in {i, a, i + N, a + N}
+                    double complex coeff_single_z = 0.25 * coeff;
+                    BitTerm bit_terms_single_z[1] = {BitTerm_Z};
+                    uint32_t indices_single_z[1] = {i - 1};
+                    SparseTerm term_single_z = {&coeff_single_z, 1, bit_terms_single_z, indices_single_z, num_qubits};
+                    qk_obs_add_term(terms, &term_single_z);
+                    indices_single_z[0] = a - 1;
+                    qk_obs_add_term(terms, &term_single_z);
+                    indices_single_z[0] = i - 1 + num_orbs;
+                    qk_obs_add_term(terms, &term_single_z);
+                    indices_single_z[0] = a - 1 + num_orbs;
+                    qk_obs_add_term(terms, &term_single_z);
+
+                    // double-Z terms: -0.25 * coeff * Z_k @ Z_l
+                    // for all (k, l) in {(i, a), (i + N, a + N)}
+                    double complex coeff_double_z = -0.25 * coeff;
+                    BitTerm bit_terms_double_z[2] = {BitTerm_Z, BitTerm_Z};
+                    uint32_t indices_double_z[2] = {i - 1, a - 1};
+                    SparseTerm term_double_z = {&coeff_double_z, 2, bit_terms_double_z, indices_double_z, num_qubits};
+                    qk_obs_add_term(terms, &term_double_z);
+                    indices_double_z[0] = i - 1 + num_orbs;
+                    indices_double_z[1] = a - 1 + num_orbs;
+                    qk_obs_add_term(terms, &term_double_z);
+
+                    // mixed-spin terms: pairings of XX and YY on (i, a) etc.
+                    double complex coeff_mixed = 0.25 * coeff;
+                    BitTerm bit_terms_mixed[4] = {BitTerm_X, BitTerm_X, BitTerm_X, BitTerm_X};
+                    uint32_t indices_mixed[4] = {i - 1, a - 1, j - 1 + num_orbs, b - 1 + num_orbs};
+                    SparseTerm term_mixed = {&coeff_mixed, 4, bit_terms_mixed, indices_mixed, num_qubits};
+                    qk_obs_add_term(terms, &term_mixed);
+                    bit_terms_mixed[2] = BitTerm_Y;
+                    bit_terms_mixed[3] = BitTerm_Y;
+                    qk_obs_add_term(terms, &term_mixed);
+                    bit_terms_mixed[0] = BitTerm_Y;
+                    bit_terms_mixed[1] = BitTerm_Y;
+                    qk_obs_add_term(terms, &term_mixed);
+                    bit_terms_mixed[2] = BitTerm_X;
+                    bit_terms_mixed[3] = BitTerm_X;
+                    qk_obs_add_term(terms, &term_mixed);
+
+                    obs = qk_obs_add(obs, terms);
+
+            }
 
             // TODO: complete me!
         }

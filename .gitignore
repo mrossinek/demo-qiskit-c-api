@@ -1,3 +1,4 @@
 include/
 lib/
 *.o
+qiskit.h

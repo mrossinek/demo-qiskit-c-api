@@ -1,3 +1,8 @@
+// for Python interface
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
+// main C script
 #include "qiskit.h"
 #include <assert.h>
 #include <complex.h>
@@ -6,7 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main() {
+
+QkSparseObservable *get_qubit_observable() {
   FILE *fp;
   char *line = NULL;
   size_t len = 0;
@@ -259,7 +265,70 @@ int main() {
     free(line);
 
   obs = qk_obs_canonicalize(obs, 1e-10);
-  qk_obs_print(obs);
 
-  exit(EXIT_SUCCESS);
+  return obs;
+}
+
+// build the PyCapsule containing the sparse observable
+static PyObject *cmod_qubit_observable(PyObject *self, PyObject *args) {
+  QkSparseObservable *obs = get_qubit_observable();
+  PyObject *capsule;
+  capsule = PyCapsule_New((void *)obs, "cbuilder.qubit_observable", NULL);
+  return capsule;
+}
+
+static PyMethodDef CModMethods[] = {
+    {"get_qubit_observable", cmod_qubit_observable, METH_VARARGS, "Get the qubit observable"},
+    {NULL, NULL, 0, NULL}, // sentinel 
+};
+
+static struct PyModuleDef cmod = {
+    PyModuleDef_HEAD_INIT,
+    "cmod", // module name
+    NULL,      // docs
+    -1,        // keep the module state in global variables
+    CModMethods,
+};
+
+PyMODINIT_FUNC PyInit_cmod(void) { return PyModule_Create(&cmod); }
+
+int main(int argc, char *argv[]) {
+  PyStatus status;
+  PyConfig config;
+  PyConfig_InitPythonConfig(&config);
+
+  /* Add a built-in module, before Py_Initialize */
+  if (PyImport_AppendInittab("cmod", PyInit_cmod) == -1) {
+    fprintf(stderr, "Error: could not extend in-built modules table\n");
+    exit(1);
+  }
+
+  /* Pass argv[0] to the Python interpreter */
+  status = PyConfig_SetBytesString(&config, &config.program_name, argv[0]);
+  if (PyStatus_Exception(status)) {
+    goto exception;
+  }
+
+  /* Initialize the Python interpreter.  Required.
+     If this step fails, it will be a fatal error. */
+  status = Py_InitializeFromConfig(&config);
+  if (PyStatus_Exception(status)) {
+    goto exception;
+  }
+  PyConfig_Clear(&config);
+
+  /* Optionally import the module; alternatively,
+     import can be deferred until the embedded script
+     imports it. */
+  PyObject *pmodule = PyImport_ImportModule("cmod");
+  if (!pmodule) {
+    PyErr_Print();
+    fprintf(stderr, "Error: could not import module 'cmod'\n");
+  }
+
+  return 0;
+
+exception:
+  PyConfig_Clear(&config);
+  Py_ExitStatusException(status);
 }

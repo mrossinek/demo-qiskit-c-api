@@ -10,8 +10,10 @@ Pauli terms.
 
 ## How to use this code
 
-1. Compile the C API for Qiskit (obtained from Julien Gacon's branch for the time being)
+1. Compile the C API for Qiskit @ https://github.com/Cryoris/qiskit-terra/tree/c-api-demo
 
 2. symlink the `qiskit.h` and `libqiskit_cext.so` files into `include/` and `lib/`, respectively
 
-3. run `make run`
+3. symlink your Python library into `lib/libpython.dylib` and the _directory_ of Python headers into `include/python/`
+
+4. run `make run`

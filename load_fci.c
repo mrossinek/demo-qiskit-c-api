@@ -99,7 +99,7 @@ QkSparseObservable *get_qubit_observable()
         QkSparseObservable *a_i = jw_term(num_qubits, i + spin * num_orbs, true);
         QkSparseObservable *a_a = jw_term(num_qubits, a + spin * num_orbs, false);
         QkSparseObservable *out = qk_obs_compose(a_a, a_i);
-        out = qk_obs_multiply(out, &coeff); // fix mem leak
+        qk_obs_multiply_inplace(out, &coeff);
 
         qk_obs_append(obs, out);
 
@@ -113,7 +113,7 @@ QkSparseObservable *get_qubit_observable()
         QkSparseObservable *a_i = jw_term(num_qubits, a + spin * num_orbs, true);
         QkSparseObservable *a_a = jw_term(num_qubits, i + spin * num_orbs, false);
         QkSparseObservable *out = qk_obs_compose(a_a, a_i);
-        out = qk_obs_multiply(out, &coeff); // fix mem leak
+        qk_obs_multiply_inplace(out, &coeff);
 
         qk_obs_append(obs, out);
 
@@ -139,7 +139,7 @@ QkSparseObservable *get_qubit_observable()
           QkSparseObservable *right = qk_obs_compose(a_b, a_j);
           QkSparseObservable *left = qk_obs_compose(a_a, a_i);
           QkSparseObservable *out = qk_obs_compose(right, left);
-          out = qk_obs_multiply(out, &coeff); // fix mem leak
+          qk_obs_multiply_inplace(out, &coeff);
 
           qk_obs_print(right);
           qk_obs_print(left);
@@ -170,7 +170,7 @@ QkSparseObservable *get_qubit_observable()
           QkSparseObservable *right = qk_obs_compose(a_b, a_j);
           QkSparseObservable *left = qk_obs_compose(a_a, a_i);
           QkSparseObservable *out = qk_obs_compose(right, left);
-          out = qk_obs_multiply(out, &coeff); // fix mem leak
+          qk_obs_multiply_inplace(out, &coeff);
 
           qk_obs_print(right);
           qk_obs_print(left);
@@ -201,7 +201,7 @@ QkSparseObservable *get_qubit_observable()
           QkSparseObservable *right = qk_obs_compose(a_b, a_j);
           QkSparseObservable *left = qk_obs_compose(a_a, a_i);
           QkSparseObservable *out = qk_obs_compose(right, left);
-          out = qk_obs_multiply(out, &coeff); // fix mem leak
+          qk_obs_multiply_inplace(out, &coeff);
 
           qk_obs_print(right);
           qk_obs_print(left);
@@ -232,7 +232,7 @@ QkSparseObservable *get_qubit_observable()
           QkSparseObservable *right = qk_obs_compose(a_b, a_j);
           QkSparseObservable *left = qk_obs_compose(a_a, a_i);
           QkSparseObservable *out = qk_obs_compose(right, left);
-          out = qk_obs_multiply(out, &coeff); // fix mem leak
+          qk_obs_multiply_inplace(out, &coeff);
 
           qk_obs_print(right);
           qk_obs_print(left);
@@ -268,9 +268,7 @@ void add_nn_interaction(QkSparseObservable *obs, double J, uint32_t i, uint32_t 
   indices[0] = i * num_qubits + j;
 
   complex double coeff = J + 0.0 * I;
-  // not sure if this is legit, I'll try to mutate the content of indices and interaction as
-  // we continuously push
-  QkSparseTerm term = {coeff, 2, interaction, indices, num_qubits};
+  QkSparseTerm term = {coeff, 2, interaction, indices, num_qubits * num_qubits};
 
   if (i > 0)
   {
@@ -294,29 +292,51 @@ void add_nn_interaction(QkSparseObservable *obs, double J, uint32_t i, uint32_t 
   }
 }
 
-QkSparseObservable *get_heisenberg_lattice(uint32_t num_qubits) // not sure if this is legit
+QkSparseObservable *get_ising_lattice(uint32_t size)
 {
-  QkSparseObservable *obs = qk_obs_zero(num_qubits * num_qubits);
+  uint32_t num_qubits = size * size;
+  QkSparseObservable *obs = qk_obs_zero(num_qubits);
   double J = 0.5;
   double h = -1;
 
-  QkBitTerm z[1] = {QkBitTerm_Z};
-  QkBitTerm xx[2] = {QkBitTerm_X, QkBitTerm_X};
-  QkBitTerm yy[2] = {QkBitTerm_Y, QkBitTerm_Y};
+  QkBitTerm x[1] = {QkBitTerm_X};
   QkBitTerm zz[2] = {QkBitTerm_Z, QkBitTerm_Z};
 
   uint32_t field_idx[1];
+  uint32_t inter_idx[2];
+  QkSparseTerm field_term = {h, 1, x, field_idx, num_qubits};
+  QkSparseTerm inter_term = {J, 2, zz, inter_idx, num_qubits};
 
-  for (uint32_t i = 0; i < num_qubits; i++)
+  for (uint32_t i = 0; i < size; i++)
   {
-    for (uint32_t j = 0; j < num_qubits; j++)
+    for (uint32_t j = 0; j < size; j++)
     {
-      // set Z term
-      field_idx[0] = i * num_qubits + j;
-      QkSparseTerm zterm = {h, 1, z, field_idx, num_qubits};
-      qk_obs_add_term(obs, &zterm);
+      // set X term
+      field_idx[0] = i * size + j;
+      qk_obs_add_term(obs, &field_term);
 
-      add_nn_interaction(obs, J, i, j, num_qubits);
+      // set interaction terms
+      inter_idx[0] = i * size + j;
+      if (i > 0)
+      {
+        inter_idx[1] = (i - 1) * size + j;
+        qk_obs_add_term(obs, &inter_term);
+      }
+      if (i < size - 1)
+      {
+        inter_idx[1] = (i + 1) * size + j;
+        qk_obs_add_term(obs, &inter_term);
+      }
+      if (j > 0)
+      {
+        inter_idx[1] = i * size + j - 1;
+        qk_obs_add_term(obs, &inter_term);
+      }
+      if (j < size - 1)
+      {
+        inter_idx[1] = i * size + j + 1;
+        qk_obs_add_term(obs, &inter_term);
+      }
     }
   }
 
@@ -332,17 +352,23 @@ static PyObject *cmod_qubit_observable(PyObject *self, PyObject *args)
   return capsule;
 }
 
-// static PyObject *cmod_heisenberg_observable(PyObject *self, PyObject *args)
-// {
-//   QkSparseObservable *obs = get_heisenberg_lattice(args); // TODO cast args???
-//   PyObject *capsule;
-//   capsule = PyCapsule_New((void *)obs, "cbuilder.heisenberg_observable", NULL);
-//   return capsule;
-// }
+static PyObject *cmod_ising_observable(PyObject *self, PyObject *args)
+{
+  unsigned int num_qubits;
+  if (!PyArg_ParseTuple(args, "I", &num_qubits))
+  {
+    return NULL;
+  }
+
+  QkSparseObservable *obs = get_ising_lattice((uint32_t)num_qubits);
+  PyObject *capsule;
+  capsule = PyCapsule_New((void *)obs, "cbuilder.ising_observable", NULL);
+  return capsule;
+}
 
 static PyMethodDef CModMethods[] = {
     {"get_qubit_observable", cmod_qubit_observable, METH_VARARGS, "Get the qubit observable"},
-    // {"get_heisenberg_observable", cmod_heisenberg_observable, METH_VARARGS, "Get a Heisenberg Hamiltonian on a lattice"},
+    {"get_ising_observable", cmod_ising_observable, METH_VARARGS, "Get a Ising Hamiltonian on a lattice"},
     {NULL, NULL, 0, NULL}, // sentinel
 };
 

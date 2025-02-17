@@ -17,3 +17,7 @@ Pauli terms.
 3. symlink your Python library into `lib/libpython.dylib` and the _directory_ of Python headers into `include/python/`
 
 4. run `make run`
+
+## Code in 1 slide
+
+![image](https://github.com/user-attachments/assets/c0438bae-9244-467e-9709-ccdaa00eee77)

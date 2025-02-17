@@ -3,15 +3,10 @@ which-python:
 	python -c 'from sysconfig import get_path; print("include:", get_path("include"))'
 
 build:
-	gcc main.c -o cmod.so -shared -fpic -I./include -I./include/python -lqiskit_cext -lpython -L./lib 
+	gcc scripts.c -o cmod.so -shared -fpic -I./include -I./include/python -lqiskit_cext -lpython -L./lib 
 
-run: build
-	LD_LIBRARY_PATH=./lib python main.py
+run_chem: build
+	LD_LIBRARY_PATH=./lib python molecule.py
 
-run_compose:
-	gcc load_fci.c -o cmod.so -shared -fpic -I./include -I./include/python -lqiskit_cext -lpython -L./lib 
-	LD_LIBRARY_PATH=./lib python main.py
-
-run_ising:
-	gcc load_fci.c -o cmod.so -shared -fpic -I./include -I./include/python -lqiskit_cext -lpython -L./lib 
+run_ising: build
 	LD_LIBRARY_PATH=./lib python ising.py

@@ -160,8 +160,10 @@ QkSparseObservable *get_qubit_observable()
         add_two_body(obs, num_qubits, num_orbs, coeff, i, a, b, j);
       if (a != i)
         add_two_body(obs, num_qubits, num_orbs, coeff, a, i, j, b);
-      if ((a != i) && (b != j))
+      if ((a != i) && (j != b))
         add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
+      if ((a != b) && (i != j))
+        add_two_body(obs, num_qubits, num_orbs, coeff, j, b, i, a);
     }
   }
 

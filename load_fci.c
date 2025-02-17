@@ -3,7 +3,7 @@
 #include <Python.h>
 
 // main C script
-#include "qiskit.h"
+#include <qiskit.h>
 #include <assert.h>
 #include <complex.h>
 #include <inttypes.h>
@@ -49,7 +49,7 @@ QkSparseObservable *get_qubit_observable()
   size_t len = 0;
   ssize_t read;
 
-  fp = fopen("h2.fcidump", "r");
+  fp = fopen("my.fcidump", "r");
   if (fp == NULL)
     exit(EXIT_FAILURE);
 
@@ -82,6 +82,8 @@ QkSparseObservable *get_qubit_observable()
     uintmax_t j = strtoumax(end, &end, 10);
     uintmax_t b = strtoumax(end, &end, 10);
 
+    printf("coeff (%f +i %f)\n", creal(coeff), cimag(coeff));
+
     if (i == 0 && j == 0 && a == 0 && b == 0)
     {
       uint32_t inds[] = {};
@@ -91,11 +93,14 @@ QkSparseObservable *get_qubit_observable()
     }
     else if (j == 0 && b == 0)
     {
-      for (int is_beta = 0; is_beta <= 1; is_beta++)
+      for (int spin = 0; spin <= 1; spin++)
       {
-        QkSparseObservable *a_i = jw_term(num_qubits, i + is_beta * num_orbs, coeff, true);
-        QkSparseObservable *a_a = jw_term(num_qubits, a + is_beta * num_orbs, coeff, false);
+        QkSparseObservable *a_i = jw_term(num_qubits, i + spin * num_orbs, coeff, true);
+        QkSparseObservable *a_a = jw_term(num_qubits, a + spin * num_orbs, coeff, false);
         QkSparseObservable *out = qk_obs_compose(a_a, a_i);
+        // qk_obs_print(a_i);
+        // qk_obs_print(a_a);
+        // qk_obs_print(out);
 
         qk_obs_append(obs, out);
 
@@ -106,24 +111,29 @@ QkSparseObservable *get_qubit_observable()
     }
     else
     {
-      for (int is_beta = 0; is_beta <= 1; is_beta++)
+      for (int spin1 = 0; spin1 <= 1; spin1++)
       {
-        // I don't really know what's the correct combination here
-        QkSparseObservable *a_i = jw_term(num_qubits, i + is_beta * num_orbs, coeff, true);
-        QkSparseObservable *a_j = jw_term(num_qubits, j + is_beta * num_orbs, coeff, true);
-        QkSparseObservable *a_a = jw_term(num_qubits, a + is_beta * num_orbs, coeff, false);
-        QkSparseObservable *a_b = jw_term(num_qubits, b + is_beta * num_orbs, coeff, false);
-        QkSparseObservable *out = qk_obs_compose(a_b, a_a);
-        out = qk_obs_compose(out, a_j);
-        out = qk_obs_compose(out, a_i);
+        for (int spin2 = 0; spin2 <= 1; spin2++)
+        {
+          // I don't really know what's the correct combination here
+          QkSparseObservable *a_i = jw_term(num_qubits, i + spin1 * num_orbs, coeff, true);
+          QkSparseObservable *a_a = jw_term(num_qubits, a + spin1 * num_orbs, coeff, false);
 
-        qk_obs_append(obs, out);
+          QkSparseObservable *a_j = jw_term(num_qubits, j + spin2 * num_orbs, coeff, true);
+          QkSparseObservable *a_b = jw_term(num_qubits, b + spin2 * num_orbs, coeff, false);
 
-        qk_obs_free(a_i);
-        qk_obs_free(a_j);
-        qk_obs_free(a_a);
-        qk_obs_free(a_b);
-        qk_obs_free(out);
+          QkSparseObservable *out = qk_obs_compose(a_j, a_b);
+          out = qk_obs_compose(a_a, out);
+          out = qk_obs_compose(a_i, out);
+
+          qk_obs_append(obs, out);
+
+          qk_obs_free(a_i);
+          qk_obs_free(a_j);
+          qk_obs_free(a_a);
+          qk_obs_free(a_b);
+          qk_obs_free(out);
+        }
       }
     }
   }
@@ -137,6 +147,69 @@ QkSparseObservable *get_qubit_observable()
   return obs;
 }
 
+void add_nn_interaction(QkSparseObservable *obs, double J, uint32_t i, uint32_t j, uint32_t num_qubits)
+{
+
+  QkBitTerm interaction[2] = {QkBitTerm_X, QkBitTerm_X};
+  uint32_t indices[2];
+  indices[0] = i * num_qubits + j;
+
+  complex double coeff = J + 0.0 * I;
+  // not sure if this is legit, I'll try to mutate the content of indices and interaction as
+  // we continuously push
+  QkSparseTerm term = {coeff, 2, interaction, indices, num_qubits};
+
+  if (i > 0)
+  {
+    indices[1] = (i - 1) * num_qubits + j;
+    qk_obs_add_term(obs, &term);
+  }
+  if (i < num_qubits - 1)
+  {
+    indices[1] = (i + 1) * num_qubits + j;
+    qk_obs_add_term(obs, &term);
+  }
+  if (j > 0)
+  {
+    indices[1] = i * num_qubits + j - 1;
+    qk_obs_add_term(obs, &term);
+  }
+  if (j < num_qubits - 1)
+  {
+    indices[1] = i * num_qubits + j + 1;
+    qk_obs_add_term(obs, &term);
+  }
+}
+
+QkSparseObservable *get_heisenberg_lattice(uint32_t num_qubits) // not sure if this is legit
+{
+  QkSparseObservable *obs = qk_obs_zero(num_qubits * num_qubits);
+  double J = 0.5;
+  double h = -1;
+
+  QkBitTerm z[1] = {QkBitTerm_Z};
+  QkBitTerm xx[2] = {QkBitTerm_X, QkBitTerm_X};
+  QkBitTerm yy[2] = {QkBitTerm_Y, QkBitTerm_Y};
+  QkBitTerm zz[2] = {QkBitTerm_Z, QkBitTerm_Z};
+
+  uint32_t field_idx[1];
+
+  for (uint32_t i = 0; i < num_qubits; i++)
+  {
+    for (uint32_t j = 0; j < num_qubits; j++)
+    {
+      // set Z term
+      field_idx[0] = i * num_qubits + j;
+      QkSparseTerm zterm = {h, 1, z, field_idx, num_qubits};
+      qk_obs_add_term(obs, &zterm);
+
+      add_nn_interaction(obs, J, i, j, num_qubits);
+    }
+  }
+
+  return obs;
+}
+
 // build the PyCapsule containing the sparse observable
 static PyObject *cmod_qubit_observable(PyObject *self, PyObject *args)
 {
@@ -146,8 +219,17 @@ static PyObject *cmod_qubit_observable(PyObject *self, PyObject *args)
   return capsule;
 }
 
+// static PyObject *cmod_heisenberg_observable(PyObject *self, PyObject *args)
+// {
+//   QkSparseObservable *obs = get_heisenberg_lattice(args); // TODO cast args???
+//   PyObject *capsule;
+//   capsule = PyCapsule_New((void *)obs, "cbuilder.heisenberg_observable", NULL);
+//   return capsule;
+// }
+
 static PyMethodDef CModMethods[] = {
     {"get_qubit_observable", cmod_qubit_observable, METH_VARARGS, "Get the qubit observable"},
+    // {"get_heisenberg_observable", cmod_heisenberg_observable, METH_VARARGS, "Get a Heisenberg Hamiltonian on a lattice"},
     {NULL, NULL, 0, NULL}, // sentinel
 };
 

@@ -124,6 +124,7 @@ QkSparseObservable *get_qubit_observable()
     }
     else
     {
+      coeff = 0.5 * coeff;
       for (int spin1 = 0; spin1 <= 1; spin1++)
       {
         for (int spin2 = 0; spin2 <= 1; spin2++)
@@ -135,10 +136,12 @@ QkSparseObservable *get_qubit_observable()
           QkSparseObservable *a_j = jw_term(num_qubits, j + spin2 * num_orbs, true);
           QkSparseObservable *a_b = jw_term(num_qubits, b + spin2 * num_orbs, false);
 
-          // math world: create(i) ann(a) create(j) ann(b)
+          // math world: create(i) create(j) ann(b) ann(a)
           QkSparseObservable *right = qk_obs_compose(a_b, a_j);
           QkSparseObservable *left = qk_obs_compose(a_a, a_i);
-          QkSparseObservable *out = qk_obs_compose(right, left);
+          QkSparseObservable *out = qk_obs_compose(a_a, a_b);
+          out = qk_obs_compose(out, a_j);
+          out = qk_obs_compose(out, a_i);
           out = qk_obs_multiply(out, &coeff); // fix mem leak
 
           qk_obs_print(right);
@@ -166,10 +169,12 @@ QkSparseObservable *get_qubit_observable()
           QkSparseObservable *a_j = jw_term(num_qubits, j + spin2 * num_orbs, true);
           QkSparseObservable *a_b = jw_term(num_qubits, b + spin2 * num_orbs, false);
 
-          // math world: create(i) ann(a) create(j) ann(b)
+          // math world: create(i) create(j) ann(b) ann(a)
           QkSparseObservable *right = qk_obs_compose(a_b, a_j);
           QkSparseObservable *left = qk_obs_compose(a_a, a_i);
-          QkSparseObservable *out = qk_obs_compose(right, left);
+          QkSparseObservable *out = qk_obs_compose(a_a, a_b);
+          out = qk_obs_compose(out, a_j);
+          out = qk_obs_compose(out, a_i);
           out = qk_obs_multiply(out, &coeff); // fix mem leak
 
           qk_obs_print(right);
@@ -197,10 +202,12 @@ QkSparseObservable *get_qubit_observable()
           QkSparseObservable *a_j = jw_term(num_qubits, b + spin2 * num_orbs, true);
           QkSparseObservable *a_b = jw_term(num_qubits, j + spin2 * num_orbs, false);
 
-          // math world: create(i) ann(a) create(j) ann(b)
+          // math world: create(i) create(j) ann(b) ann(a)
           QkSparseObservable *right = qk_obs_compose(a_b, a_j);
           QkSparseObservable *left = qk_obs_compose(a_a, a_i);
-          QkSparseObservable *out = qk_obs_compose(right, left);
+          QkSparseObservable *out = qk_obs_compose(a_a, a_b);
+          out = qk_obs_compose(out, a_j);
+          out = qk_obs_compose(out, a_i);
           out = qk_obs_multiply(out, &coeff); // fix mem leak
 
           qk_obs_print(right);
@@ -228,10 +235,12 @@ QkSparseObservable *get_qubit_observable()
           QkSparseObservable *a_j = jw_term(num_qubits, b + spin2 * num_orbs, true);
           QkSparseObservable *a_b = jw_term(num_qubits, j + spin2 * num_orbs, false);
 
-          // math world: create(i) ann(a) create(j) ann(b)
+          // math world: create(i) create(j) ann(b) ann(a)
           QkSparseObservable *right = qk_obs_compose(a_b, a_j);
           QkSparseObservable *left = qk_obs_compose(a_a, a_i);
-          QkSparseObservable *out = qk_obs_compose(right, left);
+          QkSparseObservable *out = qk_obs_compose(a_a, a_b);
+          out = qk_obs_compose(out, a_j);
+          out = qk_obs_compose(out, a_i);
           out = qk_obs_multiply(out, &coeff); // fix mem leak
 
           qk_obs_print(right);

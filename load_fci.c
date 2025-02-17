@@ -73,12 +73,15 @@ void add_two_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_o
       QkSparseObservable *a_b = jw_term(num_qubits, b + spin2 * num_orbs, false);
 
       // math world: create(i) create(j) ann(b) ann(a)
-      QkSparseObservable *right = qk_obs_compose(a_b, a_j);
-      QkSparseObservable *left = qk_obs_compose(a_a, a_i);
-      QkSparseObservable *out = qk_obs_compose(a_a, a_b);
-      out = qk_obs_compose(out, a_j);
-      out = qk_obs_compose(out, a_i);
-      out = qk_obs_multiply(out, &coeff); // fix mem leak
+      QkSparseObservable *right = qk_obs_compose(a_a, a_b);
+      QkSparseObservable *left = qk_obs_compose(a_j, a_i);
+      QkSparseObservable *out = qk_obs_compose(right, left);
+
+      // @Max you had this before:
+      // QkSparseObservable *out = qk_obs_compose(a_a, a_b);
+      // out = qk_obs_compose(out, a_j);
+      // out = qk_obs_compose(out, a_i);
+      qk_obs_multiply_inplace(out, &coeff); // fix mem leak
 
       qk_obs_append(obs, out);
 

@@ -3,10 +3,13 @@ which-python:
 	python -c 'from sysconfig import get_path; print("include:", get_path("include"))'
 
 build:
-	gcc scripts.c -o cmod.so -shared -fpic -I./include -I./include/python -lqiskit_cext -lpython -L./lib 
+	gcc scripts.c -o cextension.so -shared -fpic -I./include -I./include/python -lqiskit_pyext -lpython -L./lib 
 
 run_chem: build
 	LD_LIBRARY_PATH=./lib python molecule.py
 
 run_ising: build
 	LD_LIBRARY_PATH=./lib python ising.py
+
+clean:
+	rm cextension.so

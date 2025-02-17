@@ -19,7 +19,7 @@ QkSparseObservable *get_qubit_observable()
   size_t len = 0;
   ssize_t read;
 
-  fp = fopen("my.fcidump", "r");
+  fp = fopen("h2.fcidump", "r");
   if (fp == NULL)
     exit(EXIT_FAILURE);
 

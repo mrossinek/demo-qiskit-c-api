@@ -191,8 +191,7 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
                     unrestricted_spin = true;
                     one_body_b = calloc(num_pairs, sizeof(double));
                     two_body_bb = calloc(num_pairs * (num_pairs + 1) / 2, sizeof(double));
-                    // FIXME: two_body_ab actually is only 4-fold symmetric and not 8-fold
-                    two_body_ab = calloc(num_pairs * (num_pairs + 1) / 2, sizeof(double));
+                    two_body_ab = calloc(num_pairs * num_pairs, sizeof(double));
                 }
 
                 i -= num_orbs;
@@ -212,17 +211,16 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
                     unrestricted_spin = true;
                     one_body_b = calloc(num_pairs, sizeof(double));
                     two_body_bb = calloc(num_pairs * (num_pairs + 1) / 2, sizeof(double));
-                    // FIXME: two_body_ab actually is only 4-fold symmetric and not 8-fold
                     two_body_ab = calloc(num_pairs * num_pairs, sizeof(double));
                 }
 
-                i -= num_orbs;
-                a -= num_orbs;
                 j -= num_orbs;
                 b -= num_orbs;
 
                 if (ia_beta && jb_beta) {
                     hijkl = two_body_bb;
+                    i -= num_orbs;
+                    a -= num_orbs;
                 } else {
                     mixed_spin = true;
                     hijkl = two_body_ab;
@@ -231,13 +229,18 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
 
             ia = a * (a - 1) / 2 + i - 1;
             jb = b * (b - 1) / 2 + j - 1;
-            if (!mixed_spin && (ia < jb)) {
-                uintmax_t tmp = ia;
-                ia = jb;
-                jb = tmp;
+            if (mixed_spin) {
+                uintmax_t iajb = ia * num_pairs + jb;
+                hijkl[iajb] = 0.5 * c;
+            } else {
+                if (ia < jb) {
+                    uintmax_t tmp = ia;
+                    ia = jb;
+                    jb = tmp;
+                }
+                uintmax_t iajb = ia * (ia + 1) / 2 + jb;
+                hijkl[iajb] = 0.5 * c;
             }
-            uintmax_t iajb = ia * (ia + 1) / 2 + jb;
-            hijkl[iajb] = 0.5 * c;
         }
     }
 
@@ -318,7 +321,6 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
                             add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs, *a + num_orbs, *i + num_orbs);
                     }
                 }
-                // FIXME: complete the two_body_ab logic!
             } else {
                 coeff = two_body[iajb] + 0.0 * I;
                 add_two_body_spin(obs, num_qubits, num_orbs, coeff, *i, *a, *j, *b);
@@ -340,6 +342,33 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
                         if (*a > *i)
                             add_two_body_spin(obs, num_qubits, num_orbs, coeff, *b, *j, *a, *i);
                     }
+                }
+            }
+        }
+        if (unrestricted_spin) {
+            for (uintmax_t jb = 0; jb < num_pairs; jb++) {
+                _inflate_index(jb, num_orbs, b, j);
+                // we need to account for the 1-based indices
+                *j += 1;
+                *b += 1;
+                uintmax_t iajb = ia * num_pairs + jb;
+                coeff = two_body_ab[iajb] + 0.0 * I;
+                add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *j + num_orbs, *b + num_orbs);
+                if (*b > *j)
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *b + num_orbs, *j + num_orbs);
+                if (*a > *i) {
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *j + num_orbs, *b + num_orbs);
+                    if (*b > *j)
+                        add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *b + num_orbs, *j + num_orbs);
+                }
+
+                add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs, *i, *a);
+                if (*a > *i)
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs, *a, *i);
+                if (*b > *j) {
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs, *i, *a);
+                    if (*a > *i)
+                        add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs, *a, *i);
                 }
             }
         }

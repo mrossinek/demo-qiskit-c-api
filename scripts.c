@@ -301,24 +301,32 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
                     }
                 }
                 coeff = two_body_bb[iajb] + 0.0 * I;
-                add_two_body(obs, num_qubits, num_orbs, coeff, *i + num_orbs, *a + num_orbs, *j + num_orbs, *b + num_orbs);
+                add_two_body(obs, num_qubits, num_orbs, coeff, *i + num_orbs, *a + num_orbs,
+                             *j + num_orbs, *b + num_orbs);
                 if (*b > *j)
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *i + num_orbs, *a + num_orbs, *b + num_orbs, *j + num_orbs);
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *i + num_orbs, *a + num_orbs,
+                                 *b + num_orbs, *j + num_orbs);
                 if (*a > *i) {
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *a + num_orbs, *i + num_orbs, *j + num_orbs, *b + num_orbs);
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *a + num_orbs, *i + num_orbs,
+                                 *j + num_orbs, *b + num_orbs);
                     if (*b > *j)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *a + num_orbs, *i + num_orbs, *b + num_orbs, *j + num_orbs);
+                        add_two_body(obs, num_qubits, num_orbs, coeff, *a + num_orbs, *i + num_orbs,
+                                     *b + num_orbs, *j + num_orbs);
                 }
 
                 if (ia != jb) {
                     // swap i with j and a with b
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs, *i + num_orbs, *a + num_orbs);
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs,
+                                 *i + num_orbs, *a + num_orbs);
                     if (*a > *i)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs, *a + num_orbs, *i + num_orbs);
+                        add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs,
+                                     *a + num_orbs, *i + num_orbs);
                     if (*b > *j) {
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs, *i + num_orbs, *a + num_orbs);
+                        add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs,
+                                     *i + num_orbs, *a + num_orbs);
                         if (*a > *i)
-                            add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs, *a + num_orbs, *i + num_orbs);
+                            add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs,
+                                         *j + num_orbs, *a + num_orbs, *i + num_orbs);
                     }
                 }
             } else {
@@ -353,22 +361,30 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
                 *b += 1;
                 uintmax_t iajb = ia * num_pairs + jb;
                 coeff = two_body_ab[iajb] + 0.0 * I;
-                add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *j + num_orbs, *b + num_orbs);
+                add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *j + num_orbs,
+                             *b + num_orbs);
                 if (*b > *j)
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *b + num_orbs, *j + num_orbs);
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *b + num_orbs,
+                                 *j + num_orbs);
                 if (*a > *i) {
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *j + num_orbs, *b + num_orbs);
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *j + num_orbs,
+                                 *b + num_orbs);
                     if (*b > *j)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *b + num_orbs, *j + num_orbs);
+                        add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *b + num_orbs,
+                                     *j + num_orbs);
                 }
 
-                add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs, *i, *a);
+                add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs, *i,
+                             *a);
                 if (*a > *i)
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs, *a, *i);
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs, *a,
+                                 *i);
                 if (*b > *j) {
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs, *i, *a);
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs, *i,
+                                 *a);
                     if (*a > *i)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs, *a, *i);
+                        add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs,
+                                     *a, *i);
                 }
             }
         }

@@ -142,32 +142,42 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
             QkBitTerm bits[] = {};
             QkSparseTerm energy = {coeff, 0, bits, inds, num_qubits};
             qk_obs_add_term(obs, &energy);
+
         } else if (j == 0 && b == 0) {
             add_one_body(obs, num_qubits, num_orbs, coeff, i, a);
             if (a != i)
                 add_one_body(obs, num_qubits, num_orbs, coeff, a, i);
+
         } else {
             coeff = 0.5 * coeff;
             add_two_body(obs, num_qubits, num_orbs, coeff, i, a, j, b);
-            if (b > j)
+            if (b != j)
                 add_two_body(obs, num_qubits, num_orbs, coeff, i, a, b, j);
-            if (a > i) {
+            if (a != i) {
                 add_two_body(obs, num_qubits, num_orbs, coeff, a, i, j, b);
-                if (b > j)
+                if (b != j)
                     add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
             }
 
-            ia = i * (i + 1) / 2 + a;
-            jb = j * (j + 1) / 2 + b;
+            if (i > a) {
+                ia = i * (i - 1) / 2 + a - 1;
+            } else {
+                ia = a * (a - 1) / 2 + i - 1;
+            }
+            if (j > b) {
+                jb = j * (j - 1) / 2 + b - 1;
+            } else {
+                jb = b * (b - 1) / 2 + j - 1;
+            }
 
-            if (jb > ia) {
+            if (ia != jb) {
                 // swap i with j and a with b
                 add_two_body(obs, num_qubits, num_orbs, coeff, j, b, i, a);
-                if (a > i)
+                if (a != i)
                     add_two_body(obs, num_qubits, num_orbs, coeff, j, b, a, i);
-                if (b > j) {
+                if (b != j) {
                     add_two_body(obs, num_qubits, num_orbs, coeff, b, j, i, a);
-                    if (a > i)
+                    if (a != i)
                         add_two_body(obs, num_qubits, num_orbs, coeff, b, j, a, i);
                 }
             }

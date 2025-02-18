@@ -11,7 +11,7 @@ from qiskit_nature.second_q.operators import FermionicOp
 import cextension
 
 if __name__ == "__main__":
-    filename = "h2.fcidump"
+    filename = "lih.fcidump"
     obs = cextension.molecular_hamiltonian(filename)
     print("-- SparseObservable")
     print(obs)

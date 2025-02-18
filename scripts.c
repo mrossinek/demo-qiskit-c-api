@@ -107,6 +107,8 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
         line_co++;
         if (line_co == 1) {
             // get the number of orbitals
+            // FIXME: this assumes that NORB is the first parameter in the
+            // namelist, but this is not guaranteed to be the case.
             sscanf(line, "&FCI NORB = %ju,", &num_orbs);
             num_qubits = 2 * num_orbs;
             obs = qk_obs_zero(num_qubits);

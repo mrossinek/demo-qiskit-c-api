@@ -151,33 +151,25 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
         } else {
             coeff = 0.5 * coeff;
             add_two_body(obs, num_qubits, num_orbs, coeff, i, a, j, b);
-            if (b != j)
+            if (b > j)
                 add_two_body(obs, num_qubits, num_orbs, coeff, i, a, b, j);
-            if (a != i) {
+            if (a > i) {
                 add_two_body(obs, num_qubits, num_orbs, coeff, a, i, j, b);
-                if (b != j)
+                if (b > j)
                     add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
             }
 
-            if (i > a) {
-                ia = i * (i + 1) / 2 + a;
-            } else {
-                ia = a * (a + 1) / 2 + i;
-            }
-            if (j > b) {
-                jb = j * (j + 1) / 2 + b;
-            } else {
-                jb = b * (b + 1) / 2 + j;
-            }
+            ia = a * (a + 1) / 2 + i;
+            jb = b * (b + 1) / 2 + j;
 
             if (ia != jb) {
                 // swap i with j and a with b
                 add_two_body(obs, num_qubits, num_orbs, coeff, j, b, i, a);
-                if (a != i)
+                if (a > i)
                     add_two_body(obs, num_qubits, num_orbs, coeff, j, b, a, i);
-                if (b != j) {
+                if (b > j) {
                     add_two_body(obs, num_qubits, num_orbs, coeff, b, j, i, a);
-                    if (a != i)
+                    if (a > i)
                         add_two_body(obs, num_qubits, num_orbs, coeff, b, j, a, i);
                 }
             }

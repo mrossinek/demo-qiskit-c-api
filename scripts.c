@@ -87,6 +87,18 @@ void add_two_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_o
     }
 }
 
+void _inflate_index(uintmax_t ia, uintmax_t size, uintmax_t *i, uintmax_t *a) {
+    *i = 0;
+    *a = 0;
+    for (uintmax_t n = 0; n < size; n++) {
+        uintmax_t pq = (n + 1) * (n + 2) / 2;
+        if (pq > ia)
+            break;
+        *i += 1;
+    }
+    *a = ia - *i * (*i + 1) / 2;
+}
+
 QkSparseObservable *get_molecular_hamiltonian(char *filename) {
     FILE *fp;
     char *line = NULL;
@@ -99,6 +111,10 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
 
     uintmax_t num_orbs = 0;
     uintmax_t num_qubits = 0;
+    uintmax_t num_pairs = 0;
+
+    double *one_body;
+    double *two_body;
 
     QkSparseObservable *obs;
 
@@ -122,6 +138,10 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
             sscanf(line, "%le%n", &c, &num_chars);
             if (num_chars < 100) {
                 finished_header = true;
+                // allocate memory for one- and two-body coefficients arrays
+                num_pairs = num_orbs * (num_orbs + 1) / 2;
+                one_body = malloc(num_pairs * sizeof(double));
+                two_body = malloc(num_pairs * (num_pairs + 1) / 2 * sizeof(double));
             } else {
                 continue;
             }
@@ -144,33 +164,62 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
             qk_obs_add_term(obs, &energy);
 
         } else if (j == 0 && b == 0) {
-            add_one_body(obs, num_qubits, num_orbs, coeff, i, a);
-            if (a != i)
-                add_one_body(obs, num_qubits, num_orbs, coeff, a, i);
+            ia = a * (a - 1) / 2 + i - 1;
+            one_body[ia] = c;
 
         } else {
-            coeff = 0.5 * coeff;
-            add_two_body(obs, num_qubits, num_orbs, coeff, i, a, j, b);
-            if (b > j)
-                add_two_body(obs, num_qubits, num_orbs, coeff, i, a, b, j);
-            if (a > i) {
-                add_two_body(obs, num_qubits, num_orbs, coeff, a, i, j, b);
-                if (b > j)
-                    add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
+            ia = a * (a - 1) / 2 + i - 1;
+            jb = b * (b - 1) / 2 + j - 1;
+            if (ia < jb) {
+                uintmax_t tmp = ia;
+                ia = jb;
+                jb = tmp;
             }
+            uintmax_t iajb = ia * (ia + 1) / 2 + jb;
+            two_body[iajb] = 0.5 * c;
+        }
+    }
 
-            ia = a * (a + 1) / 2 + i;
-            jb = b * (b + 1) / 2 + j;
+    uintmax_t i[1];
+    uintmax_t a[1];
+    uintmax_t j[1];
+    uintmax_t b[1];
+    for (uintmax_t ia = 0; ia < num_pairs; ia++) {
+        _inflate_index(ia, num_orbs, a, i);
+        // we need to account for the 1-based indices
+        *i += 1;
+        *a += 1;
+        double complex coeff = one_body[ia] + 0.0 * I;
+        add_one_body(obs, num_qubits, num_orbs, coeff, *i, *a);
+        if (*a != *i)
+            add_one_body(obs, num_qubits, num_orbs, coeff, *a, *i);
+
+        for (uintmax_t jb = ia; jb < num_pairs; jb++) {
+            _inflate_index(jb, num_orbs, b, j);
+            // we need to account for the 1-based indices
+            *j += 1;
+            *b += 1;
+            uintmax_t iajb = jb * (jb + 1) / 2 + ia;
+            coeff = two_body[iajb] + 0.0 * I;
+
+            add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *j, *b);
+            if (*b > *j)
+                add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *b, *j);
+            if (*a > *i) {
+                add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *j, *b);
+                if (*b > *j)
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *b, *j);
+            }
 
             if (ia != jb) {
                 // swap i with j and a with b
-                add_two_body(obs, num_qubits, num_orbs, coeff, j, b, i, a);
-                if (a > i)
-                    add_two_body(obs, num_qubits, num_orbs, coeff, j, b, a, i);
-                if (b > j) {
-                    add_two_body(obs, num_qubits, num_orbs, coeff, b, j, i, a);
-                    if (a > i)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, b, j, a, i);
+                add_two_body(obs, num_qubits, num_orbs, coeff, *j, *b, *i, *a);
+                if (*a > *i)
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *j, *b, *a, *i);
+                if (*b > *j) {
+                    add_two_body(obs, num_qubits, num_orbs, coeff, *b, *j, *i, *a);
+                    if (*a > *i)
+                        add_two_body(obs, num_qubits, num_orbs, coeff, *b, *j, *a, *i);
                 }
             }
         }

@@ -160,14 +160,14 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
             }
 
             if (i > a) {
-                ia = i * (i - 1) / 2 + a - 1;
+                ia = i * (i + 1) / 2 + a;
             } else {
-                ia = a * (a - 1) / 2 + i - 1;
+                ia = a * (a + 1) / 2 + i;
             }
             if (j > b) {
-                jb = j * (j - 1) / 2 + b - 1;
+                jb = j * (j + 1) / 2 + b;
             } else {
-                jb = b * (b - 1) / 2 + j - 1;
+                jb = b * (b + 1) / 2 + j;
             }
 
             if (ia != jb) {

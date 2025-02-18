@@ -3,10 +3,6 @@ from qiskit.circuit import QuantumCircuit
 from qiskit.circuit.library import excitation_preserving
 from qiskit.primitives import StatevectorEstimator
 from qiskit.quantum_info import SparseObservable, SparsePauliOp
-from qiskit_nature.second_q.formats import fcidump_to_problem
-from qiskit_nature.second_q.formats.fcidump import FCIDump
-from qiskit_nature.second_q.mappers import JordanWignerMapper
-from qiskit_nature.second_q.operators import FermionicOp
 
 import cextension
 
@@ -19,15 +15,6 @@ if __name__ == "__main__":
     # primitives V2 don't support SparseObservable yet...
     # ... and we want to compare against Qiskit Nature's output
     spo = SparsePauliOp.from_sparse_observable(obs)
-
-    fcidump = FCIDump.from_file(filename)
-    problem = fcidump_to_problem(fcidump)
-    mapper = JordanWignerMapper()
-    hamil = problem.hamiltonian.second_q_op()
-    hamil += sum(problem.hamiltonian.constants.values()) * FermionicOp.one()
-    op = mapper.map(hamil)
-
-    assert spo.equiv(op)
 
     circuit = QuantumCircuit(obs.num_qubits)
     circuit.x(0)

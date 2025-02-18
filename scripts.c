@@ -97,25 +97,25 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
     if (fp == NULL)
         exit(EXIT_FAILURE);
 
-    uintmax_t num_orbs;
-    uintmax_t num_qubits;
+    uintmax_t num_orbs = 0;
+    uintmax_t num_qubits = 0;
 
     QkSparseObservable *obs;
 
-    int line_co = 0;
     bool finished_header = false;
     while ((read = getline(&line, &len, fp)) != -1) {
-        line_co++;
-        if (line_co == 1) {
-            // get the number of orbitals
-            // FIXME: this assumes that NORB is the first parameter in the
-            // namelist, but this is not guaranteed to be the case.
-            sscanf(line, "&FCI NORB = %ju,", &num_orbs);
-            num_qubits = 2 * num_orbs;
-            obs = qk_obs_zero(num_qubits);
-        }
-
         if (!finished_header) {
+            if (num_orbs == 0) {
+                // we have not detected the number of orbitals, yet
+                // FIXME: this assumes that NORB is the first parameter in the
+                // namelist, but this is not guaranteed to be the case.
+                sscanf(line, "&FCI NORB = %ju,", &num_orbs);
+                num_qubits = 2 * num_orbs;
+                obs = qk_obs_zero(num_qubits);
+                // we know that the header is not finished yet, so we can skip
+                // the next check
+                continue;
+            }
             double c;
             unsigned int num_chars;
             // once the line starts with a float, the header is finished

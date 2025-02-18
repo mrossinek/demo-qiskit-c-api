@@ -87,34 +87,46 @@ void add_two_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_o
     }
 }
 
-QkSparseObservable *get_qubit_observable() {
+QkSparseObservable *get_molecular_hamiltonian(char *filename) {
     FILE *fp;
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
 
-    fp = fopen("h2.fcidump", "r");
+    fp = fopen(filename, "r");
     if (fp == NULL)
         exit(EXIT_FAILURE);
 
-    uintmax_t num_orbs;
-    uintmax_t num_qubits;
+    uintmax_t num_orbs = 0;
+    uintmax_t num_qubits = 0;
 
     QkSparseObservable *obs;
 
-    int line_co = 0;
+    bool finished_header = false;
     while ((read = getline(&line, &len, fp)) != -1) {
-        line_co++;
-        if (line_co == 1) {
-            // get the number of orbitals
-            sscanf(line, "&FCI NORB = %ju,", &num_orbs);
-            num_qubits = 2 * num_orbs;
-            obs = qk_obs_zero(num_qubits);
+        if (!finished_header) {
+            if (num_orbs == 0) {
+                // we have not detected the number of orbitals, yet
+                // FIXME: this assumes that NORB is the first parameter in the
+                // namelist, but this is not guaranteed to be the case.
+                sscanf(line, "&FCI NORB = %ju,", &num_orbs);
+                num_qubits = 2 * num_orbs;
+                obs = qk_obs_zero(num_qubits);
+                // we know that the header is not finished yet, so we can skip
+                // the next check
+                continue;
+            }
+            double c;
+            unsigned int num_chars;
+            // once the line starts with a float, the header is finished
+            sscanf(line, "%le%n", &c, &num_chars);
+            if (num_chars < 100) {
+                finished_header = true;
+            } else {
+                continue;
+            }
         }
 
-        if (line_co < 5) {
-            continue;
-        }
         char *end = NULL;
         double c = strtod(line, &end);
         double complex coeff = c + 0.0 * I;
@@ -122,27 +134,45 @@ QkSparseObservable *get_qubit_observable() {
         uintmax_t a = strtoumax(end, &end, 10);
         uintmax_t j = strtoumax(end, &end, 10);
         uintmax_t b = strtoumax(end, &end, 10);
+        uintmax_t ia;
+        uintmax_t jb;
 
         if (i == 0 && j == 0 && a == 0 && b == 0) {
             uint32_t inds[] = {};
             QkBitTerm bits[] = {};
             QkSparseTerm energy = {coeff, 0, bits, inds, num_qubits};
             qk_obs_add_term(obs, &energy);
+
         } else if (j == 0 && b == 0) {
             add_one_body(obs, num_qubits, num_orbs, coeff, i, a);
             if (a != i)
                 add_one_body(obs, num_qubits, num_orbs, coeff, a, i);
+
         } else {
             coeff = 0.5 * coeff;
             add_two_body(obs, num_qubits, num_orbs, coeff, i, a, j, b);
-            if (b != j)
+            if (b > j)
                 add_two_body(obs, num_qubits, num_orbs, coeff, i, a, b, j);
-            if (a != i)
+            if (a > i) {
                 add_two_body(obs, num_qubits, num_orbs, coeff, a, i, j, b);
-            if ((a != i) && (j != b))
-                add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
-            if ((a != b) && (i != j))
+                if (b > j)
+                    add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
+            }
+
+            ia = a * (a + 1) / 2 + i;
+            jb = b * (b + 1) / 2 + j;
+
+            if (ia != jb) {
+                // swap i with j and a with b
                 add_two_body(obs, num_qubits, num_orbs, coeff, j, b, i, a);
+                if (a > i)
+                    add_two_body(obs, num_qubits, num_orbs, coeff, j, b, a, i);
+                if (b > j) {
+                    add_two_body(obs, num_qubits, num_orbs, coeff, b, j, i, a);
+                    if (a > i)
+                        add_two_body(obs, num_qubits, num_orbs, coeff, b, j, a, i);
+                }
+            }
         }
     }
 
@@ -228,16 +258,13 @@ QkSparseObservable *get_ising_lattice(uint32_t size) {
     return obs;
 }
 
-// build the PyCapsule containing the sparse observable
-static PyObject *cextension_qubit_observable_pycapsule(PyObject *self, PyObject *args) {
-    QkSparseObservable *obs = get_qubit_observable();
-    PyObject *capsule;
-    capsule = PyCapsule_New((void *)obs, "cbuilder.qubit_observable", NULL);
-    return capsule;
-}
+static PyObject *cextension_molecular_hamiltonian(PyObject *self, PyObject *args) {
+    char *filename;
+    if (!PyArg_ParseTuple(args, "s", &filename)) {
+        return NULL;
+    }
 
-static PyObject *cextension_qubit_observable(PyObject *self, PyObject *args) {
-    QkSparseObservable *obs = get_qubit_observable();
+    QkSparseObservable *obs = get_molecular_hamiltonian(filename);
     PyObject *py_obs = qk_obs_to_python(obs);
     return py_obs;
 }
@@ -254,9 +281,8 @@ static PyObject *cextension_ising_observable(PyObject *self, PyObject *args) {
 }
 
 static PyMethodDef CExtMethods[] = {
-    {"qubit_observable_pycapsule", cextension_qubit_observable_pycapsule, METH_VARARGS,
-     "Get the qubit observable as PyCapsule"},
-    {"qubit_observable", cextension_qubit_observable, METH_VARARGS, "Get the qubit observable"},
+    {"molecular_hamiltonian", cextension_molecular_hamiltonian, METH_VARARGS,
+     "Get the qubit observable"},
     {"ising_observable", cextension_ising_observable, METH_VARARGS,
      "Get a Ising Hamiltonian on a lattice"},
     {NULL, NULL, 0, NULL}, // sentinel

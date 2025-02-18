@@ -134,6 +134,8 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
         uintmax_t a = strtoumax(end, &end, 10);
         uintmax_t j = strtoumax(end, &end, 10);
         uintmax_t b = strtoumax(end, &end, 10);
+        uintmax_t ia;
+        uintmax_t jb;
 
         if (i == 0 && j == 0 && a == 0 && b == 0) {
             uint32_t inds[] = {};
@@ -147,14 +149,28 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
         } else {
             coeff = 0.5 * coeff;
             add_two_body(obs, num_qubits, num_orbs, coeff, i, a, j, b);
-            if (b != j)
+            if (b > j)
                 add_two_body(obs, num_qubits, num_orbs, coeff, i, a, b, j);
-            if (a != i)
+            if (a > i) {
                 add_two_body(obs, num_qubits, num_orbs, coeff, a, i, j, b);
-            if ((a != i) && (j != b))
-                add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
-            if ((a != b) && (i != j))
+                if (b > j)
+                    add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
+            }
+
+            ia = i * (i + 1) / 2 + a;
+            jb = j * (j + 1) / 2 + b;
+
+            if (jb > ia) {
+                // swap i with j and a with b
                 add_two_body(obs, num_qubits, num_orbs, coeff, j, b, i, a);
+                if (a > i)
+                    add_two_body(obs, num_qubits, num_orbs, coeff, j, b, a, i);
+                if (b > j) {
+                    add_two_body(obs, num_qubits, num_orbs, coeff, b, j, i, a);
+                    if (a > i)
+                        add_two_body(obs, num_qubits, num_orbs, coeff, b, j, a, i);
+                }
+            }
         }
     }
 

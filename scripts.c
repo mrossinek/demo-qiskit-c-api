@@ -92,12 +92,40 @@ void add_two_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_o
     qk_obs_free(left);
 }
 
-void add_two_body_spin(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
-                       complex double coeff, uintmax_t i, uintmax_t a, uintmax_t j, uintmax_t b) {
-    for (int spin1 = 0; spin1 <= 1; spin1++) {
-        for (int spin2 = 0; spin2 <= 1; spin2++) {
-            add_two_body(obs, num_qubits, num_orbs, coeff, i + spin1 * num_orbs,
-                         a + spin1 * num_orbs, j + spin2 * num_orbs, b + spin2 * num_orbs);
+void add_two_body_spin_pure(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
+                            complex double coeff_a, complex double coeff_b, bool swap_ia_jb,
+                            uintmax_t i, uintmax_t a, uintmax_t j, uintmax_t b) {
+    uintmax_t no = num_orbs;
+    add_two_body(obs, num_qubits, num_orbs, coeff_a, i, a, j, b);
+    add_two_body(obs, num_qubits, num_orbs, coeff_b, i + no, a + no, j + no, b + no);
+    if (b > j) {
+        add_two_body(obs, num_qubits, num_orbs, coeff_a, i, a, b, j);
+        add_two_body(obs, num_qubits, num_orbs, coeff_b, i + no, a + no, b + no, j + no);
+    }
+    if (a > i) {
+        add_two_body(obs, num_qubits, num_orbs, coeff_a, a, i, j, b);
+        add_two_body(obs, num_qubits, num_orbs, coeff_b, a + no, i + no, j + no, b + no);
+        if (b > j) {
+            add_two_body(obs, num_qubits, num_orbs, coeff_a, a, i, b, j);
+            add_two_body(obs, num_qubits, num_orbs, coeff_b, a + no, i + no, b + no, j + no);
+        }
+    }
+
+    if (swap_ia_jb) {
+        // swap i with j and a with b
+        add_two_body(obs, num_qubits, num_orbs, coeff_a, j, b, i, a);
+        add_two_body(obs, num_qubits, num_orbs, coeff_b, j + no, b + no, i + no, a + no);
+        if (a > i) {
+            add_two_body(obs, num_qubits, num_orbs, coeff_a, j, b, a, i);
+            add_two_body(obs, num_qubits, num_orbs, coeff_b, j + no, b + no, a + no, i + no);
+        }
+        if (b > j) {
+            add_two_body(obs, num_qubits, num_orbs, coeff_a, b, j, i, a);
+            add_two_body(obs, num_qubits, num_orbs, coeff_b, b + no, j + no, i + no, a + no);
+            if (a > i) {
+                add_two_body(obs, num_qubits, num_orbs, coeff_a, b, j, a, i);
+                add_two_body(obs, num_qubits, num_orbs, coeff_b, b + no, j + no, a + no, i + no);
+            }
         }
     }
 }
@@ -271,80 +299,10 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
             *b += 1;
             uintmax_t iajb = jb * (jb + 1) / 2 + ia;
 
-            if (unrestricted_spin) {
-                coeff = two_body[iajb] + 0.0 * I;
-                add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *j, *b);
-                if (*b > *j)
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *i, *a, *b, *j);
-                if (*a > *i) {
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *j, *b);
-                    if (*b > *j)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *a, *i, *b, *j);
-                }
-
-                if (ia != jb) {
-                    // swap i with j and a with b
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *j, *b, *i, *a);
-                    if (*a > *i)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *j, *b, *a, *i);
-                    if (*b > *j) {
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *b, *j, *i, *a);
-                        if (*a > *i)
-                            add_two_body(obs, num_qubits, num_orbs, coeff, *b, *j, *a, *i);
-                    }
-                }
-                coeff = two_body_bb[iajb] + 0.0 * I;
-                add_two_body(obs, num_qubits, num_orbs, coeff, *i + num_orbs, *a + num_orbs,
-                             *j + num_orbs, *b + num_orbs);
-                if (*b > *j)
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *i + num_orbs, *a + num_orbs,
-                                 *b + num_orbs, *j + num_orbs);
-                if (*a > *i) {
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *a + num_orbs, *i + num_orbs,
-                                 *j + num_orbs, *b + num_orbs);
-                    if (*b > *j)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *a + num_orbs, *i + num_orbs,
-                                     *b + num_orbs, *j + num_orbs);
-                }
-
-                if (ia != jb) {
-                    // swap i with j and a with b
-                    add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs,
-                                 *i + num_orbs, *a + num_orbs);
-                    if (*a > *i)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *j + num_orbs, *b + num_orbs,
-                                     *a + num_orbs, *i + num_orbs);
-                    if (*b > *j) {
-                        add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs, *j + num_orbs,
-                                     *i + num_orbs, *a + num_orbs);
-                        if (*a > *i)
-                            add_two_body(obs, num_qubits, num_orbs, coeff, *b + num_orbs,
-                                         *j + num_orbs, *a + num_orbs, *i + num_orbs);
-                    }
-                }
-            } else {
-                coeff = two_body[iajb] + 0.0 * I;
-                add_two_body_spin(obs, num_qubits, num_orbs, coeff, *i, *a, *j, *b);
-                if (*b > *j)
-                    add_two_body_spin(obs, num_qubits, num_orbs, coeff, *i, *a, *b, *j);
-                if (*a > *i) {
-                    add_two_body_spin(obs, num_qubits, num_orbs, coeff, *a, *i, *j, *b);
-                    if (*b > *j)
-                        add_two_body_spin(obs, num_qubits, num_orbs, coeff, *a, *i, *b, *j);
-                }
-
-                if (ia != jb) {
-                    // swap i with j and a with b
-                    add_two_body_spin(obs, num_qubits, num_orbs, coeff, *j, *b, *i, *a);
-                    if (*a > *i)
-                        add_two_body_spin(obs, num_qubits, num_orbs, coeff, *j, *b, *a, *i);
-                    if (*b > *j) {
-                        add_two_body_spin(obs, num_qubits, num_orbs, coeff, *b, *j, *i, *a);
-                        if (*a > *i)
-                            add_two_body_spin(obs, num_qubits, num_orbs, coeff, *b, *j, *a, *i);
-                    }
-                }
-            }
+            coeff_a = two_body[iajb] + 0.0 * I;
+            coeff_b = unrestricted_spin ? two_body_bb[iajb] : two_body[iajb] + 0.0 * I;
+            add_two_body_spin_pure(obs, num_qubits, num_orbs, coeff_a, coeff_b, (ia != jb), *i, *a,
+                                   *j, *b);
         }
         if (unrestricted_spin) {
             for (uintmax_t jb = 0; jb < num_pairs; jb++) {

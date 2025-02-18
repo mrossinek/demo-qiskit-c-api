@@ -103,6 +103,7 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
     QkSparseObservable *obs;
 
     int line_co = 0;
+    bool finished_header = false;
     while ((read = getline(&line, &len, fp)) != -1) {
         line_co++;
         if (line_co == 1) {
@@ -114,9 +115,18 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
             obs = qk_obs_zero(num_qubits);
         }
 
-        if (line_co < 5) {
-            continue;
+        if (!finished_header) {
+            double c;
+            unsigned int num_chars;
+            // once the line starts with a float, the header is finished
+            sscanf(line, "%le%n", &c, &num_chars);
+            if (num_chars < 100) {
+                finished_header = true;
+            } else {
+                continue;
+            }
         }
+
         char *end = NULL;
         double c = strtod(line, &end);
         double complex coeff = c + 0.0 * I;

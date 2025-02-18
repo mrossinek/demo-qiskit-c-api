@@ -4,23 +4,20 @@ from qiskit.circuit.library import excitation_preserving
 from qiskit.primitives import StatevectorEstimator
 from qiskit.quantum_info import SparseObservable, SparsePauliOp
 
-import cmod
+import cextension
 
 if __name__ == "__main__":
-    capsule = cmod.get_qubit_observable()
-    obs = SparseObservable.from_pycapsule(capsule)
+    obs = cextension.qubit_observable()
     print("-- SparseObservable")
     print(obs)
 
-    spo = SparsePauliOp.from_sparse_observable(obs)
-    print("-- SparsePauliOp")
-    print(spo)
-
     circuit = QuantumCircuit(obs.num_qubits)
     circuit.x(0)
-    circuit.compose(excitation_preserving(spo.num_qubits), inplace=True)
+    circuit.compose(excitation_preserving(obs.num_qubits), inplace=True)
     values = 2 * np.pi * np.random.random((10, circuit.num_parameters))
 
+    # primitives V2 don't support SparseObservable yet
+    spo = SparsePauliOp.from_sparse_observable(obs)
     pub = (circuit, spo, values)
     result = StatevectorEstimator().run([pub]).result()[0]
 

@@ -4,13 +4,10 @@ from qiskit.circuit.library import PauliEvolutionGate
 from qiskit.quantum_info import SparseObservable
 from qiskit.transpiler.passes import HLSConfig
 
-import cmod  #
+import cextension
 
 if __name__ == "__main__":
-    capsule = cmod.get_ising_observable(10)
-    obs = SparseObservable.from_pycapsule(capsule)
-    print("-- SparseObservable")
-    print(obs)
+    obs = cextension.ising_observable(10)
 
     evo = PauliEvolutionGate(obs)
     circuit = QuantumCircuit(obs.num_qubits)

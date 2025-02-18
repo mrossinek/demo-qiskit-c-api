@@ -12,8 +12,12 @@ Pauli terms.
 
 1. Compile the C API for Qiskit @ https://github.com/Cryoris/qiskit-terra/tree/c-api-demo
 
-2. symlink the `qiskit.h` and `libqiskit_cext.so` files into `include/` and `lib/`, respectively
+2. symlink the `qiskit.h` and `libqiskit_pyext.so` files into `include/` and `lib/`, respectively
 
 3. symlink your Python library into `lib/libpython.dylib` and the _directory_ of Python headers into `include/python/`
 
 4. run `make run`
+
+## Code in 1 slide
+
+![image](https://github.com/user-attachments/assets/c0438bae-9244-467e-9709-ccdaa00eee77)

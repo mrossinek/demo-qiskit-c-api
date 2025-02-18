@@ -13,7 +13,6 @@ if __name__ == "__main__":
     print(obs)
 
     # primitives V2 don't support SparseObservable yet...
-    # ... and we want to compare against Qiskit Nature's output
     spo = SparsePauliOp.from_sparse_observable(obs)
 
     circuit = QuantumCircuit(obs.num_qubits)

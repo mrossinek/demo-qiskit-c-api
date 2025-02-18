@@ -56,9 +56,12 @@ void add_one_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_o
 }
 
 void add_one_body_spin(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
-                       complex double coeff, uintmax_t i, uintmax_t a) {
-    for (int spin = 0; spin <= 1; spin++) {
-        add_one_body(obs, num_qubits, num_orbs, coeff, i + spin * num_orbs, a + spin * num_orbs);
+                       complex double coeff_a, complex double coeff_b, uintmax_t i, uintmax_t a) {
+    add_one_body(obs, num_qubits, num_orbs, coeff_a, i, a);
+    add_one_body(obs, num_qubits, num_orbs, coeff_b, i + num_orbs, a + num_orbs);
+    if (a != i) {
+        add_one_body(obs, num_qubits, num_orbs, coeff_a, a, i);
+        add_one_body(obs, num_qubits, num_orbs, coeff_b, a + num_orbs, i + num_orbs);
     }
 }
 
@@ -249,27 +252,17 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
     uintmax_t j[1];
     uintmax_t b[1];
     double complex coeff;
+    double complex coeff_a;
+    double complex coeff_b;
     for (uintmax_t ia = 0; ia < num_pairs; ia++) {
         _inflate_index(ia, num_orbs, a, i);
         // we need to account for the 1-based indices
         *i += 1;
         *a += 1;
 
-        if (unrestricted_spin) {
-            coeff = one_body[ia] + 0.0 * I;
-            add_one_body(obs, num_qubits, num_orbs, coeff, *i, *a);
-            if (*a != *i)
-                add_one_body(obs, num_qubits, num_orbs, coeff, *a, *i);
-            coeff = one_body_b[ia] + 0.0 * I;
-            add_one_body(obs, num_qubits, num_orbs, coeff, *i + num_orbs, *a + num_orbs);
-            if (*a != *i)
-                add_one_body(obs, num_qubits, num_orbs, coeff, *a + num_orbs, *i + num_orbs);
-        } else {
-            coeff = one_body[ia] + 0.0 * I;
-            add_one_body_spin(obs, num_qubits, num_orbs, coeff, *i, *a);
-            if (*a != *i)
-                add_one_body_spin(obs, num_qubits, num_orbs, coeff, *a, *i);
-        }
+        coeff_a = one_body[ia] + 0.0 * I;
+        coeff_b = unrestricted_spin ? one_body_b[ia] : one_body[ia] + 0.0 * I;
+        add_one_body_spin(obs, num_qubits, num_orbs, coeff_a, coeff_b, *i, *a);
 
         for (uintmax_t jb = ia; jb < num_pairs; jb++) {
             _inflate_index(jb, num_orbs, b, j);

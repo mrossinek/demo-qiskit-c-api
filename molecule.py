@@ -11,7 +11,8 @@ from qiskit_nature.second_q.operators import FermionicOp
 import cextension
 
 if __name__ == "__main__":
-    obs = cextension.qubit_observable()
+    filename = "h2.fcidump"
+    obs = cextension.molecular_hamiltonian(filename)
     print("-- SparseObservable")
     print(obs)
 
@@ -19,7 +20,7 @@ if __name__ == "__main__":
     # ... and we want to compare against Qiskit Nature's output
     spo = SparsePauliOp.from_sparse_observable(obs)
 
-    fcidump = FCIDump.from_file("h2.fcidump")
+    fcidump = FCIDump.from_file(filename)
     problem = fcidump_to_problem(fcidump)
     mapper = JordanWignerMapper()
     hamil = problem.hamiltonian.second_q_op()

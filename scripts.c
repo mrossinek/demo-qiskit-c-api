@@ -87,13 +87,13 @@ void add_two_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_o
     }
 }
 
-QkSparseObservable *get_qubit_observable() {
+QkSparseObservable *get_molecular_hamiltonian(char *filename) {
     FILE *fp;
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
 
-    fp = fopen("h2.fcidump", "r");
+    fp = fopen(filename, "r");
     if (fp == NULL)
         exit(EXIT_FAILURE);
 
@@ -228,16 +228,13 @@ QkSparseObservable *get_ising_lattice(uint32_t size) {
     return obs;
 }
 
-// build the PyCapsule containing the sparse observable
-static PyObject *cextension_qubit_observable_pycapsule(PyObject *self, PyObject *args) {
-    QkSparseObservable *obs = get_qubit_observable();
-    PyObject *capsule;
-    capsule = PyCapsule_New((void *)obs, "cbuilder.qubit_observable", NULL);
-    return capsule;
-}
+static PyObject *cextension_molecular_hamiltonian(PyObject *self, PyObject *args) {
+    char *filename;
+    if (!PyArg_ParseTuple(args, "s", &filename)) {
+        return NULL;
+    }
 
-static PyObject *cextension_qubit_observable(PyObject *self, PyObject *args) {
-    QkSparseObservable *obs = get_qubit_observable();
+    QkSparseObservable *obs = get_molecular_hamiltonian(filename);
     PyObject *py_obs = qk_obs_to_python(obs);
     return py_obs;
 }
@@ -254,9 +251,8 @@ static PyObject *cextension_ising_observable(PyObject *self, PyObject *args) {
 }
 
 static PyMethodDef CExtMethods[] = {
-    {"qubit_observable_pycapsule", cextension_qubit_observable_pycapsule, METH_VARARGS,
-     "Get the qubit observable as PyCapsule"},
-    {"qubit_observable", cextension_qubit_observable, METH_VARARGS, "Get the qubit observable"},
+    {"molecular_hamiltonian", cextension_molecular_hamiltonian, METH_VARARGS,
+     "Get the qubit observable"},
     {"ising_observable", cextension_ising_observable, METH_VARARGS,
      "Get a Ising Hamiltonian on a lattice"},
     {NULL, NULL, 0, NULL}, // sentinel

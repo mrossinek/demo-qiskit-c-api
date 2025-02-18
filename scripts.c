@@ -7,6 +7,7 @@
 #include <complex.h>
 #include <inttypes.h>
 #include <qiskit.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -140,8 +141,8 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
                 finished_header = true;
                 // allocate memory for one- and two-body coefficients arrays
                 num_pairs = num_orbs * (num_orbs + 1) / 2;
-                one_body = malloc(num_pairs * sizeof(double));
-                two_body = malloc(num_pairs * (num_pairs + 1) / 2 * sizeof(double));
+                one_body = calloc(num_pairs, sizeof(double));
+                two_body = calloc(num_pairs * (num_pairs + 1) / 2, sizeof(double));
             } else {
                 continue;
             }

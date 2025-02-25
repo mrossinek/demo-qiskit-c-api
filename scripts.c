@@ -7,6 +7,7 @@
 #include <complex.h>
 #include <inttypes.h>
 #include <qiskit.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,49 +43,108 @@ QkSparseObservable *jw_term(uintmax_t num_qubits, uintmax_t site, bool creation)
 
 void add_one_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
                   complex double coeff, uintmax_t i, uintmax_t a) {
-    for (int spin = 0; spin <= 1; spin++) {
-        QkSparseObservable *a_i = jw_term(num_qubits, i + spin * num_orbs, true);
-        QkSparseObservable *a_a = jw_term(num_qubits, a + spin * num_orbs, false);
-        QkSparseObservable *out = qk_obs_compose(a_a, a_i);
-        qk_obs_multiply_inplace(out, &coeff);
+    QkSparseObservable *a_i = jw_term(num_qubits, i, true);
+    QkSparseObservable *a_a = jw_term(num_qubits, a, false);
+    QkSparseObservable *out = qk_obs_compose(a_a, a_i);
+    qk_obs_multiply_inplace(out, &coeff);
 
-        qk_obs_append(obs, out);
+    qk_obs_append(obs, out);
 
-        qk_obs_free(a_i);
-        qk_obs_free(a_a);
-        qk_obs_free(out);
+    qk_obs_free(a_i);
+    qk_obs_free(a_a);
+    qk_obs_free(out);
+}
+
+void add_one_body_spin(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
+                       complex double coeff_a, complex double coeff_b, uintmax_t i, uintmax_t a) {
+    add_one_body(obs, num_qubits, num_orbs, coeff_a, i, a);
+    add_one_body(obs, num_qubits, num_orbs, coeff_b, i + num_orbs, a + num_orbs);
+    if (a != i) {
+        add_one_body(obs, num_qubits, num_orbs, coeff_a, a, i);
+        add_one_body(obs, num_qubits, num_orbs, coeff_b, a + num_orbs, i + num_orbs);
     }
 }
 
 void add_two_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
                   complex double coeff, uintmax_t i, uintmax_t a, uintmax_t j, uintmax_t b) {
-    for (int spin1 = 0; spin1 <= 1; spin1++) {
-        for (int spin2 = 0; spin2 <= 1; spin2++) {
-            // I don't really know what's the correct combination here
-            QkSparseObservable *a_i = jw_term(num_qubits, i + spin1 * num_orbs, true);
-            QkSparseObservable *a_a = jw_term(num_qubits, a + spin1 * num_orbs, false);
+    QkSparseObservable *a_i = jw_term(num_qubits, i, true);
+    QkSparseObservable *a_a = jw_term(num_qubits, a, false);
 
-            QkSparseObservable *a_j = jw_term(num_qubits, j + spin2 * num_orbs, true);
-            QkSparseObservable *a_b = jw_term(num_qubits, b + spin2 * num_orbs, false);
+    QkSparseObservable *a_j = jw_term(num_qubits, j, true);
+    QkSparseObservable *a_b = jw_term(num_qubits, b, false);
 
-            // math world: create(i) create(j) ann(b) ann(a)
-            QkSparseObservable *right = qk_obs_compose(a_a, a_b);
-            QkSparseObservable *left = qk_obs_compose(a_j, a_i);
-            QkSparseObservable *out = qk_obs_compose(right, left);
+    // math world: create(i) create(j) ann(b) ann(a)
+    QkSparseObservable *right = qk_obs_compose(a_a, a_b);
+    QkSparseObservable *left = qk_obs_compose(a_j, a_i);
+    QkSparseObservable *out = qk_obs_compose(right, left);
 
-            qk_obs_multiply_inplace(out, &coeff);
+    qk_obs_multiply_inplace(out, &coeff);
 
-            qk_obs_append(obs, out);
+    qk_obs_append(obs, out);
 
-            qk_obs_free(a_i);
-            qk_obs_free(a_j);
-            qk_obs_free(a_a);
-            qk_obs_free(a_b);
-            qk_obs_free(out);
-            qk_obs_free(right);
-            qk_obs_free(left);
+    qk_obs_free(a_i);
+    qk_obs_free(a_j);
+    qk_obs_free(a_a);
+    qk_obs_free(a_b);
+    qk_obs_free(out);
+    qk_obs_free(right);
+    qk_obs_free(left);
+}
+
+void add_two_body_permute(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
+                          complex double coeff, bool swap_ia_jb, uintmax_t i, uintmax_t a,
+                          uintmax_t j, uintmax_t b) {
+    add_two_body(obs, num_qubits, num_orbs, coeff, i, a, j, b);
+    if (b > j)
+        add_two_body(obs, num_qubits, num_orbs, coeff, i, a, b, j);
+    if (a > i) {
+        add_two_body(obs, num_qubits, num_orbs, coeff, a, i, j, b);
+        if (b > j)
+            add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
+    }
+
+    if (swap_ia_jb) {
+        // swap i with j and a with b
+        add_two_body(obs, num_qubits, num_orbs, coeff, j, b, i, a);
+        if (a > i)
+            add_two_body(obs, num_qubits, num_orbs, coeff, j, b, a, i);
+        if (b > j) {
+            add_two_body(obs, num_qubits, num_orbs, coeff, b, j, i, a);
+            if (a > i)
+                add_two_body(obs, num_qubits, num_orbs, coeff, b, j, a, i);
         }
     }
+}
+
+void add_two_body_spin_pure(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
+                            complex double coeff_a, complex double coeff_b, bool swap_ia_jb,
+                            uintmax_t i, uintmax_t a, uintmax_t j, uintmax_t b) {
+    add_two_body_permute(obs, num_qubits, num_orbs, coeff_a, swap_ia_jb, i, a, j, b);
+    add_two_body_permute(obs, num_qubits, num_orbs, coeff_b, swap_ia_jb, i + num_orbs, a + num_orbs,
+                         j + num_orbs, b + num_orbs);
+}
+
+void _inflate_index(uintmax_t ia, uintmax_t size, uintmax_t *i, uintmax_t *a) {
+    // reverse an index of a flattened upper-triangular array (ia) to its original index pair (i, a)
+    *i = 0;
+    *a = 0;
+    for (uintmax_t n = 0; n < size; n++) {
+        uintmax_t pq = (n + 1) * (n + 2) / 2;
+        if (pq > ia)
+            break;
+        *i += 1;
+    }
+    *a = ia - *i * (*i + 1) / 2;
+}
+
+uintmax_t _deflate_index(uintmax_t i, uintmax_t a) {
+    // computes the flattened upper-triangular array index (ia) from an index pair (i, a)
+    if (a < i) {
+        uintmax_t tmp = a;
+        a = i;
+        i = tmp;
+    }
+    return a * (a - 1) / 2 + i - 1;
 }
 
 QkSparseObservable *get_molecular_hamiltonian(char *filename) {
@@ -99,6 +159,14 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
 
     uintmax_t num_orbs = 0;
     uintmax_t num_qubits = 0;
+    uintmax_t num_pairs = 0;
+
+    double *one_body;
+    double *two_body;
+    double *one_body_b;
+    double *two_body_bb;
+    double *two_body_ab;
+    bool unrestricted_spin = false;
 
     QkSparseObservable *obs;
 
@@ -122,6 +190,13 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
             sscanf(line, "%le%n", &c, &num_chars);
             if (num_chars < 100) {
                 finished_header = true;
+                // allocate memory for one- and two-body coefficients arrays
+                num_pairs = num_orbs * (num_orbs + 1) / 2;
+                // NOTE: we use calloc to ensure that our arrays are initialized with zeros
+                one_body = calloc(num_pairs, sizeof(double));
+                // The 2-body terms are 8-fold symmetric, meaning we only need to store the upper-
+                // triangular of the upper-triangular of the 4D matrix (hence this array size).
+                two_body = calloc(num_pairs * (num_pairs + 1) / 2, sizeof(double));
             } else {
                 continue;
             }
@@ -136,6 +211,12 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
         uintmax_t b = strtoumax(end, &end, 10);
         uintmax_t ia;
         uintmax_t jb;
+        uintmax_t iajb;
+
+        bool ia_beta = false;
+        bool jb_beta = false;
+        double *hij = one_body;
+        double *hijkl = two_body;
 
         if (i == 0 && j == 0 && a == 0 && b == 0) {
             uint32_t inds[] = {};
@@ -144,34 +225,109 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
             qk_obs_add_term(obs, &energy);
 
         } else if (j == 0 && b == 0) {
-            add_one_body(obs, num_qubits, num_orbs, coeff, i, a);
-            if (a != i)
-                add_one_body(obs, num_qubits, num_orbs, coeff, a, i);
+            ia_beta = i > num_orbs || a > num_orbs;
+            if (ia_beta) {
+                if (!unrestricted_spin) {
+                    unrestricted_spin = true;
+                    // NOTE: we use calloc to ensure that our arrays are initialized with zeros
+                    one_body_b = calloc(num_pairs, sizeof(double));
+                    two_body_bb = calloc(num_pairs * (num_pairs + 1) / 2, sizeof(double));
+                    // NOTE: the mixed-spin integrals are only 4-fold symmetric, hence the different
+                    // size of the array
+                    two_body_ab = calloc(num_pairs * num_pairs, sizeof(double));
+                }
 
-        } else {
-            coeff = 0.5 * coeff;
-            add_two_body(obs, num_qubits, num_orbs, coeff, i, a, j, b);
-            if (b > j)
-                add_two_body(obs, num_qubits, num_orbs, coeff, i, a, b, j);
-            if (a > i) {
-                add_two_body(obs, num_qubits, num_orbs, coeff, a, i, j, b);
-                if (b > j)
-                    add_two_body(obs, num_qubits, num_orbs, coeff, a, i, b, j);
+                i -= num_orbs;
+                a -= num_orbs;
+                hij = one_body_b;
             }
 
-            ia = a * (a + 1) / 2 + i;
-            jb = b * (b + 1) / 2 + j;
+            ia = _deflate_index(i, a);
+            hij[ia] = c;
 
-            if (ia != jb) {
-                // swap i with j and a with b
-                add_two_body(obs, num_qubits, num_orbs, coeff, j, b, i, a);
-                if (a > i)
-                    add_two_body(obs, num_qubits, num_orbs, coeff, j, b, a, i);
-                if (b > j) {
-                    add_two_body(obs, num_qubits, num_orbs, coeff, b, j, i, a);
-                    if (a > i)
-                        add_two_body(obs, num_qubits, num_orbs, coeff, b, j, a, i);
+        } else {
+            ia_beta = i > num_orbs || a > num_orbs;
+            jb_beta = j > num_orbs || b > num_orbs;
+            bool mixed_spin = false;
+            if (ia_beta || jb_beta) {
+                if (!unrestricted_spin) {
+                    unrestricted_spin = true;
+                    // NOTE: we use calloc to ensure that our arrays are initialized with zeros
+                    one_body_b = calloc(num_pairs, sizeof(double));
+                    two_body_bb = calloc(num_pairs * (num_pairs + 1) / 2, sizeof(double));
+                    // NOTE: the mixed-spin integrals are only 4-fold symmetric, hence the different
+                    // size of the array
+                    two_body_ab = calloc(num_pairs * num_pairs, sizeof(double));
                 }
+
+                j -= num_orbs;
+                b -= num_orbs;
+
+                if (ia_beta && jb_beta) {
+                    hijkl = two_body_bb;
+                    i -= num_orbs;
+                    a -= num_orbs;
+                } else {
+                    mixed_spin = true;
+                    hijkl = two_body_ab;
+                }
+            }
+
+            ia = _deflate_index(i, a);
+            jb = _deflate_index(j, b);
+            // NOTE: we must account for the 1-based indexing in _deflate_index
+            iajb = mixed_spin ? ia * num_pairs + jb : _deflate_index(jb + 1, ia + 1);
+            hijkl[iajb] = 0.5 * c;
+        }
+    }
+
+    uintmax_t i[1];
+    uintmax_t a[1];
+    uintmax_t j[1];
+    uintmax_t b[1];
+    double complex coeff_a;
+    double complex coeff_b;
+    for (uintmax_t ia = 0; ia < num_pairs; ia++) {
+        _inflate_index(ia, num_orbs, a, i);
+        // we need to account for the 1-based indices
+        *i += 1;
+        *a += 1;
+
+        coeff_a = one_body[ia] + 0.0 * I;
+        coeff_b = unrestricted_spin ? one_body_b[ia] : coeff_a + 0.0 * I;
+        add_one_body_spin(obs, num_qubits, num_orbs, coeff_a, coeff_b, *i, *a);
+
+        for (uintmax_t jb = unrestricted_spin ? 0 : ia; jb < num_pairs; jb++) {
+            _inflate_index(jb, num_orbs, b, j);
+            // we need to account for the 1-based indices
+            *j += 1;
+            *b += 1;
+
+            // NOTE: we only add the pure-spin 2-body terms when jb>=ia because only then does
+            // the additonal symmetry hold
+            if (jb >= ia) {
+                // NOTE: we must account for the 1-based indexing in _deflate_index
+                uintmax_t iajb = _deflate_index(jb + 1, ia + 1);
+                coeff_a = two_body[iajb] + 0.0 * I;
+                coeff_b = unrestricted_spin ? two_body_bb[iajb] : coeff_a + 0.0 * I;
+                add_two_body_spin_pure(obs, num_qubits, num_orbs, coeff_a, coeff_b, (ia != jb), *i,
+                                       *a, *j, *b);
+            }
+
+            if (unrestricted_spin) {
+                uintmax_t iajb = ia * num_pairs + jb;
+                double complex coeff = two_body_ab[iajb] + 0.0 * I;
+                add_two_body_permute(obs, num_qubits, num_orbs, coeff, false, *i, *a, *j + num_orbs,
+                                     *b + num_orbs);
+                add_two_body_permute(obs, num_qubits, num_orbs, coeff, false, *j + num_orbs,
+                                     *b + num_orbs, *i, *a);
+            } else {
+                // NOTE: coeff_a here is always well defined because this clause only gets executed
+                // for jb>=ia due to the starting point's dependene on `unrestricted_spin`
+                add_two_body_permute(obs, num_qubits, num_orbs, coeff_a, (ia != jb), *i + num_orbs,
+                                     *a + num_orbs, *j, *b);
+                add_two_body_permute(obs, num_qubits, num_orbs, coeff_a, (ia != jb), *i, *a,
+                                     *j + num_orbs, *b + num_orbs);
             }
         }
     }

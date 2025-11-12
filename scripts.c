@@ -1,20 +1,21 @@
 // for Python interface
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#define QISKIT_C_PYTHON_INTERFACE
+#include <qiskit.h>
 
 // main C script
 #include <assert.h>
 #include <complex.h>
 #include <inttypes.h>
-#include <qiskit.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-QkSparseObservable *jw_term(uintmax_t num_qubits, uintmax_t site, bool creation) {
-    QkSparseObservable *op = qk_obs_zero(num_qubits);
+QkObs *jw_term(uintmax_t num_qubits, const uintmax_t site, bool creation) {
+    QkObs *op = qk_obs_zero(num_qubits);
 
     uint32_t indices[site];
     QkBitTerm x_bits[site];
@@ -29,11 +30,13 @@ QkSparseObservable *jw_term(uintmax_t num_qubits, uintmax_t site, bool creation)
     x_bits[site - 1] = QkBitTerm_X;
     y_bits[site - 1] = QkBitTerm_Y;
 
-    complex double x_coeff = 0.5;
-    complex double y_coeff = creation ? -0.5 * I : 0.5 * I;
+    complex double x_coeff_ = 0.5;
+    complex double y_coeff_ = creation ? -0.5 * I : 0.5 * I;
+    QkComplex64 x_coeff = qk_complex64_from_native(&x_coeff_);
+    QkComplex64 y_coeff = qk_complex64_from_native(&y_coeff_);
 
-    QkSparseTerm x = {x_coeff, site, x_bits, indices, num_qubits};
-    QkSparseTerm y = {y_coeff, site, y_bits, indices, num_qubits};
+    QkObsTerm x = {x_coeff, site, x_bits, indices, num_qubits};
+    QkObsTerm y = {y_coeff, site, y_bits, indices, num_qubits};
 
     qk_obs_add_term(op, &x);
     qk_obs_add_term(op, &y);
@@ -41,22 +44,22 @@ QkSparseObservable *jw_term(uintmax_t num_qubits, uintmax_t site, bool creation)
     return op;
 }
 
-void add_one_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
-                  complex double coeff, uintmax_t i, uintmax_t a) {
-    QkSparseObservable *a_i = jw_term(num_qubits, i, true);
-    QkSparseObservable *a_a = jw_term(num_qubits, a, false);
-    QkSparseObservable *out = qk_obs_compose(a_a, a_i);
-    qk_obs_multiply_inplace(out, &coeff);
-
-    qk_obs_append(obs, out);
+void add_one_body(QkObs *obs, uintmax_t num_qubits, uintmax_t num_orbs, complex double coeff,
+                  uintmax_t i, uintmax_t a) {
+    QkObs *a_i = jw_term(num_qubits, i, true);
+    QkObs *a_a = jw_term(num_qubits, a, false);
+    QkObs *out = qk_obs_compose(a_a, a_i);
+    QkComplex64 qk_coeff = qk_complex64_from_native(&coeff);
+    out = qk_obs_multiply(out, &qk_coeff);
+    obs = qk_obs_add(obs, out);
 
     qk_obs_free(a_i);
     qk_obs_free(a_a);
     qk_obs_free(out);
 }
 
-void add_one_body_spin(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
-                       complex double coeff_a, complex double coeff_b, uintmax_t i, uintmax_t a) {
+void add_one_body_spin(QkObs *obs, uintmax_t num_qubits, uintmax_t num_orbs, complex double coeff_a,
+                       complex double coeff_b, uintmax_t i, uintmax_t a) {
     add_one_body(obs, num_qubits, num_orbs, coeff_a, i, a);
     add_one_body(obs, num_qubits, num_orbs, coeff_b, i + num_orbs, a + num_orbs);
     if (a != i) {
@@ -65,22 +68,23 @@ void add_one_body_spin(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t 
     }
 }
 
-void add_two_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
-                  complex double coeff, uintmax_t i, uintmax_t a, uintmax_t j, uintmax_t b) {
-    QkSparseObservable *a_i = jw_term(num_qubits, i, true);
-    QkSparseObservable *a_a = jw_term(num_qubits, a, false);
+void add_two_body(QkObs *obs, uintmax_t num_qubits, uintmax_t num_orbs, complex double coeff,
+                  uintmax_t i, uintmax_t a, uintmax_t j, uintmax_t b) {
+    QkObs *a_i = jw_term(num_qubits, i, true);
+    QkObs *a_a = jw_term(num_qubits, a, false);
 
-    QkSparseObservable *a_j = jw_term(num_qubits, j, true);
-    QkSparseObservable *a_b = jw_term(num_qubits, b, false);
+    QkObs *a_j = jw_term(num_qubits, j, true);
+    QkObs *a_b = jw_term(num_qubits, b, false);
 
     // math world: create(i) create(j) ann(b) ann(a)
-    QkSparseObservable *right = qk_obs_compose(a_a, a_b);
-    QkSparseObservable *left = qk_obs_compose(a_j, a_i);
-    QkSparseObservable *out = qk_obs_compose(right, left);
+    QkObs *right = qk_obs_compose(a_a, a_b);
+    QkObs *left = qk_obs_compose(a_j, a_i);
+    QkObs *out = qk_obs_compose(right, left);
 
-    qk_obs_multiply_inplace(out, &coeff);
+    QkComplex64 qk_coeff = qk_complex64_from_native(&coeff);
+    out = qk_obs_multiply(out, &qk_coeff);
 
-    qk_obs_append(obs, out);
+    obs = qk_obs_add(obs, out);
 
     qk_obs_free(a_i);
     qk_obs_free(a_j);
@@ -91,7 +95,7 @@ void add_two_body(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_o
     qk_obs_free(left);
 }
 
-void add_two_body_permute(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
+void add_two_body_permute(QkObs *obs, uintmax_t num_qubits, uintmax_t num_orbs,
                           complex double coeff, bool swap_ia_jb, uintmax_t i, uintmax_t a,
                           uintmax_t j, uintmax_t b) {
     add_two_body(obs, num_qubits, num_orbs, coeff, i, a, j, b);
@@ -116,7 +120,7 @@ void add_two_body_permute(QkSparseObservable *obs, uintmax_t num_qubits, uintmax
     }
 }
 
-void add_two_body_spin_pure(QkSparseObservable *obs, uintmax_t num_qubits, uintmax_t num_orbs,
+void add_two_body_spin_pure(QkObs *obs, uintmax_t num_qubits, uintmax_t num_orbs,
                             complex double coeff_a, complex double coeff_b, bool swap_ia_jb,
                             uintmax_t i, uintmax_t a, uintmax_t j, uintmax_t b) {
     add_two_body_permute(obs, num_qubits, num_orbs, coeff_a, swap_ia_jb, i, a, j, b);
@@ -147,7 +151,7 @@ uintmax_t _deflate_index(uintmax_t i, uintmax_t a) {
     return a * (a - 1) / 2 + i - 1;
 }
 
-QkSparseObservable *get_molecular_hamiltonian(char *filename) {
+QkObs *get_molecular_hamiltonian(char *filename) {
     FILE *fp;
     char *line = NULL;
     size_t len = 0;
@@ -168,7 +172,7 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
     double *two_body_ab;
     bool unrestricted_spin = false;
 
-    QkSparseObservable *obs;
+    QkObs *obs;
 
     bool finished_header = false;
     while ((read = getline(&line, &len, fp)) != -1) {
@@ -204,7 +208,8 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
 
         char *end = NULL;
         double c = strtod(line, &end);
-        double complex coeff = c + 0.0 * I;
+        double complex coeff_ = c + 0.0 * I;
+        QkComplex64 coeff = qk_complex64_from_native(&coeff_);
         uintmax_t i = strtoumax(end, &end, 10);
         uintmax_t a = strtoumax(end, &end, 10);
         uintmax_t j = strtoumax(end, &end, 10);
@@ -221,7 +226,7 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
         if (i == 0 && j == 0 && a == 0 && b == 0) {
             uint32_t inds[] = {};
             QkBitTerm bits[] = {};
-            QkSparseTerm energy = {coeff, 0, bits, inds, num_qubits};
+            QkObsTerm energy = {coeff, 0, bits, inds, num_qubits};
             qk_obs_add_term(obs, &energy);
 
         } else if (j == 0 && b == 0) {
@@ -336,21 +341,21 @@ QkSparseObservable *get_molecular_hamiltonian(char *filename) {
     if (line)
         free(line);
 
-    QkSparseObservable *canonicalized = qk_obs_canonicalize(obs, 1e-10);
+    QkObs *canonicalized = qk_obs_canonicalize(obs, 1e-10);
     qk_obs_free(obs);
 
     return canonicalized;
 }
 
-void add_nn_interaction(QkSparseObservable *obs, double J, uint32_t i, uint32_t j,
-                        uint32_t num_qubits) {
+void add_nn_interaction(QkObs *obs, double J, uint32_t i, uint32_t j, uint32_t num_qubits) {
 
     QkBitTerm interaction[2] = {QkBitTerm_X, QkBitTerm_X};
     uint32_t indices[2];
     indices[0] = i * num_qubits + j;
 
-    complex double coeff = J + 0.0 * I;
-    QkSparseTerm term = {coeff, 2, interaction, indices, num_qubits * num_qubits};
+    complex double coeff_ = J + 0.0 * I;
+    QkComplex64 coeff = qk_complex64_from_native(&coeff_);
+    QkObsTerm term = {coeff, 2, interaction, indices, num_qubits * num_qubits};
 
     if (i > 0) {
         indices[1] = (i - 1) * num_qubits + j;
@@ -370,19 +375,19 @@ void add_nn_interaction(QkSparseObservable *obs, double J, uint32_t i, uint32_t 
     }
 }
 
-QkSparseObservable *get_ising_lattice(uint32_t size) {
+QkObs *get_ising_lattice(uint32_t size) {
     uint32_t num_qubits = size * size;
-    QkSparseObservable *obs = qk_obs_zero(num_qubits);
-    double J = 0.5;
-    double h = -1;
+    QkObs *obs = qk_obs_zero(num_qubits);
+    QkComplex64 J = {0.5, 0};
+    QkComplex64 h = {-1, 0};
 
     QkBitTerm x[1] = {QkBitTerm_X};
     QkBitTerm zz[2] = {QkBitTerm_Z, QkBitTerm_Z};
 
     uint32_t field_idx[1];
     uint32_t inter_idx[2];
-    QkSparseTerm field_term = {h, 1, x, field_idx, num_qubits};
-    QkSparseTerm inter_term = {J, 2, zz, inter_idx, num_qubits};
+    QkObsTerm field_term = {h, 1, x, field_idx, num_qubits};
+    QkObsTerm inter_term = {J, 2, zz, inter_idx, num_qubits};
 
     for (uint32_t i = 0; i < size; i++) {
         for (uint32_t j = 0; j < size; j++) {
@@ -420,7 +425,7 @@ static PyObject *cextension_molecular_hamiltonian(PyObject *self, PyObject *args
         return NULL;
     }
 
-    QkSparseObservable *obs = get_molecular_hamiltonian(filename);
+    QkObs *obs = get_molecular_hamiltonian(filename);
     PyObject *py_obs = qk_obs_to_python(obs);
     return py_obs;
 }
@@ -431,7 +436,7 @@ static PyObject *cextension_ising_observable(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    QkSparseObservable *obs = get_ising_lattice((uint32_t)num_qubits);
+    QkObs *obs = get_ising_lattice((uint32_t)num_qubits);
     PyObject *py_obs = qk_obs_to_python(obs);
     return py_obs;
 }
